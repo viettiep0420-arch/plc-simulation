@@ -1,0 +1,40 @@
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch main
+# Your branch is up to date with 'origin/main'.
+#
+# Changes to be committed:
+#	new file:   .clinerules
+#	new file:   .cursor/rules/core.mdc
+#	new file:   .cursor/rules/memory-bank.mdc
+#	new file:   .cursor/rules/project-intelligence.md
+#	new file:   .env
+#	new file:   memory-bank/activeContext.md
+#	new file:   memory-bank/productContext.md
+#	new file:   memory-bank/progress.md
+#	new file:   memory-bank/projectbrief.md
+#	new file:   memory-bank/systemPatterns.md
+#	new file:   memory-bank/techContext.md
+#	modified:   package.json
+#	new file:   postcss.config.js
+#	modified:   src/App.tsx
+#	modified:   src/components/Simulator.tsx
+#	modified:   src/components/TabSelect.tsx
+#	modified:   src/components/diagram/Diagram.tsx
+#	new file:   src/components/gx-works2/GXWorks2Demo.tsx
+#	new file:   src/components/gx-works2/GXWorks2IDE.tsx
+#	new file:   src/components/gx-works2/GXWorks2Test.tsx
+#	new file:   src/components/gx-works2/SimpleTest.tsx
+#	new file:   src/components/menu/MenuBar.tsx
+#	new file:   src/components/menu/MenuDemo.tsx
+#	modified:   src/components/toolbox/ToolboxBlock.tsx
+#	modified:   src/consts/colors.ts
+#	modified:   src/consts/consts.ts
+#	modified:   src/index.css
+#	modified:   src/store/simulator.ts
+#	modified:   src/store/types.ts
+#	new file:   tailwind.config.js
+#	modified:   yarn.lock
+#
