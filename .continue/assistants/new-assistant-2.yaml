@@ -1,0 +1,29 @@
+# This is an example assistant configuration file
+# It is used to define custom AI assistants within Continue
+# Each assistant file can be accessed by selecting it from the assistant dropdown
+
+# To learn more, see the full assistant reference: https://docs.continue.dev/reference
+
+name: Openrouter=
+version: 1.0.0
+schema: v1
+
+# Models define which AI models this assistant can use
+models:
+  - name: deepseek v3.1 (OpenRouter free)
+    provider: openai
+    model: deepseek/deepseek-chat-v3.1:free
+    apiKey: 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
+    apiBase: https://openrouter.ai/api/v1
+
+# Context providers define what information the assistant can access
+context:
+  - provider: code
+  - provider: docs
+  - provider: diff
+  - provider: terminal
+  - provider: problems
+  - provider: folder
+  - provider: codebase
+
+#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

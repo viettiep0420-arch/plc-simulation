@@ -78,6 +78,13 @@ export interface Store extends Diagram {
     simulation: boolean;
     selectedUuid: string;
   };
+  symbolEntry: {
+    isOpen: boolean;
+    deviceText: string;
+    instruction: 'contact' | 'coil';
+    enterSymbolContinuously: boolean;
+    enterDeviceCommentContinuously: boolean;
+  };
 }
 
 export interface Variable {

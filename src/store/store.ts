@@ -5,7 +5,7 @@ import { persistStore } from "redux-persist";
 import "firebase/compat/firestore";
 
 import { migrations } from "./const";
-import { IMPORT_PROJECT, OPEN_ALERT_SNACKBAR } from "./types";
+// import { IMPORT_PROJECT, OPEN_ALERT_SNACKBAR } from "./types";
 import firebase from "../helpers/firebase";
 import { enablePatches } from "immer";
 import simulator from "./simulator";
@@ -19,7 +19,7 @@ const persistConfig = {
   migrate: createMigrate(migrations as any, { debug: true }),
   debug: true,
   writeFailHandler: (err: any) => console.error("storage engine failed during setItem()", err),
-  blacklist: ["temp"],
+  whitelist: ["simulator", "symbolEntry"], // Explicitly list what to persist
 };
 
 enablePatches();
@@ -35,48 +35,8 @@ declare global {
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
 
 export const store = createStore(persistedReducer, composeEnhancers());
+export type RootState = ReturnType<typeof simulator> & ReturnType<typeof persistedReducer>;
 
-export const persistor = persistStore(store, { manualPersist: true } as any);
+export const persistor = persistStore(store);
 
-const shareUuid = window.location.pathname.split("/")[1];
-
-export const loadDiagram = () => {
-  if (shareUuid) {
-    const shareRef: firebase.firestore.DocumentReference<firebase.firestore.DocumentData> = firestore
-      .collection("projects_public")
-      .doc(shareUuid);
-    shareRef
-      .get()
-      .then((doc) => {
-        if (doc.exists) {
-          const payload = doc.data()?.diagram;
-          store.dispatch({ type: IMPORT_PROJECT, payload });
-          persistor.purge();
-        } else {
-          store.dispatch({
-            type: OPEN_ALERT_SNACKBAR,
-            payload: {
-              color: "error",
-              open: true,
-              text: "Diagram not found in the database.",
-            },
-          });
-        }
-        persistor.persist();
-      })
-      .catch((error) => {
-        store.dispatch({
-          type: OPEN_ALERT_SNACKBAR,
-          payload: {
-            color: "error",
-            open: true,
-            text: `Database loading error. ${error.message}`,
-          },
-        });
-        console.error("Error getting document:", error);
-        persistor.persist();
-      });
-  } else {
-    persistor.persist();
-  }
-};
+// Removed manual persistence handling

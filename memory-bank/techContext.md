@@ -45,6 +45,12 @@
 - **React Icons 4.x**: Icon library
 - **React Select 5.x**: Select component
 - **Sentry React 8.x**: Error tracking and monitoring
+- **React Router DOM**: Route-based interface separation
+- **@dnd-kit/core**: Drag and drop functionality for customizable toolbars
+- **@dnd-kit/sortable**: Sortable drag and drop components
+- **@dnd-kit/utilities**: Utility functions for drag and drop
+- **Zustand 5.x**: Lightweight state management for layout persistence
+- **Lucide React**: Modern icon library for GX Works2 IDE
 
 ### Development Tools
 - **ESLint 8.x**: Code linting

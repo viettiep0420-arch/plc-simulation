@@ -12,6 +12,7 @@ import MenuBar from './menu/MenuBar';
 import VariableTable from './variables/VariableTable';
 import AlertSnackbar from './AlertSnackbar';
 import { DELETE_OBJECT } from '../store/types';
+import WiringDiagram from './diagram/WiringDiagram';
 
 const Desktop = styled.div`
   display: grid;
@@ -53,6 +54,7 @@ const Simulator: React.FC = () => {
   const displayTab = useSelector((state: Store) => state.misc.displayTab);
   const displayDiagramTab = displayTab === DISPLAY_TAB.DIAGRAM;
   const displayVariablesTab = displayTab === DISPLAY_TAB.VARIABLES;
+  const displayWiringTab = displayTab === DISPLAY_TAB.WIRING;
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -75,6 +77,7 @@ const Simulator: React.FC = () => {
           <TabSelect />
           {displayVariablesTab && <VariableTable mobileUI={mobileUI} />}
           {displayDiagramTab && <Diagram mobileUI={mobileUI} />}
+          {displayWiringTab && <WiringDiagram />}
           <Actions />
           <Footer mobileUI={mobileUI} />
         </Mobile>

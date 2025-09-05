@@ -1,6 +1,13 @@
 import { Store } from "../interface";
 
 export const SAMPLE_DRAFT: Store = {
+  symbolEntry: {
+    isOpen: false,
+    deviceText: '',
+    instruction: 'contact',
+    enterSymbolContinuously: false,
+    enterDeviceCommentContinuously: false,
+  },
   runglist: [
     "54354e01-b16d-4e1c-baa9-66dfff5b630d",
     "34f73e42-58e5-401b-b207-685a8e2af1b2",
@@ -666,6 +673,13 @@ export const SAMPLE_DRAFT: Store = {
 };
 
 export const INITIAL_DRAFT: Store = {
+  symbolEntry: {
+    isOpen: false,
+    deviceText: '',
+    instruction: 'contact',
+    enterSymbolContinuously: false,
+    enterDeviceCommentContinuously: false,
+  },
   runglist: ["646b1d58-1615-4d9d-9002-66faa3d546a0"],
   rungs: {
     "646b1d58-1615-4d9d-9002-66faa3d546a0": {

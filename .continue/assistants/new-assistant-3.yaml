@@ -1,0 +1,24 @@
+# DeepSeek Assistant for Continue
+name: DeepSeek Assistant
+version: 1.0.0
+schema: v1
+
+models:
+  - name: deepseek v3.1 (OpenRouter free)
+    provider: openai
+    model: deepseek/deepseek-chat-v3.1:free
+    apiKey: API Key
+    apiBase: https://openrouter.ai/api/v1
+
+context:
+  - provider: code
+  - provider: docs
+  - provider: diff
+  - provider: terminal
+  - provider: problems
+  - provider: folder
+  - provider: codebase
+
+
+
+#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

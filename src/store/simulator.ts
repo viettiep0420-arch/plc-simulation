@@ -2,6 +2,7 @@ import produce, { applyPatches, Patch } from "immer";
 import * as TYPES from "./types";
 import { INITIAL_DRAFT, SAMPLE_DRAFT } from "./const";
 import { Diagram, Store } from "../interface";
+import { symbolEntryActions } from "./symbolEntrySlice";
 import { addRung } from "../helpers/addRung";
 import { assignParameter } from "../helpers/assignParameter";
 import { findParrentRung } from "../helpers/simulationObjects";
@@ -269,19 +270,26 @@ export default function (state = INITIAL_DRAFT, action: { type: string; payload:
             misc: {
               displayTab: "diagram",
             },
-            temp: {
-              alertSnackbar: {
-                color: "success",
-                open: true,
-                text: "Diagram successfully loaded from the database.",
-              },
-              canUndo: false,
-              canRedo: false,
-              diagramSaved: true,
-              openElementProps: false,
-              simulation: false,
-              selectedUuid: "",
-            },
+  temp: {
+    alertSnackbar: {
+      color: "success",
+      open: false,
+      text: "",
+    },
+    canUndo: false,
+    canRedo: false,
+    diagramSaved: true,
+    openElementProps: false,
+    simulation: false,
+    selectedUuid: "",
+  },
+  symbolEntry: {
+    isOpen: false,
+    deviceText: '',
+    instruction: 'contact',
+    enterSymbolContinuously: false,
+    enterDeviceCommentContinuously: false,
+  },
           };
         }
         case TYPES.LOAD_SAMPLE:
@@ -293,6 +301,27 @@ export default function (state = INITIAL_DRAFT, action: { type: string; payload:
           changes = [];
           currentVersion = -1;
           return INITIAL_DRAFT;
+
+        // Symbol Entry actions
+        case symbolEntryActions.openWithPreset.type:
+          draft.symbolEntry.isOpen = true;
+          Object.assign(draft.symbolEntry, action.payload);
+          return;
+        case symbolEntryActions.close.type:
+          draft.symbolEntry.isOpen = false;
+          return;
+        case symbolEntryActions.setDeviceText.type:
+          draft.symbolEntry.deviceText = action.payload;
+          return;
+        case symbolEntryActions.setInstruction.type:
+          draft.symbolEntry.instruction = action.payload;
+          return;
+        case symbolEntryActions.toggleSymbolContinuously.type:
+          draft.symbolEntry.enterSymbolContinuously = !draft.symbolEntry.enterSymbolContinuously;
+          return;
+        case symbolEntryActions.toggleDeviceCommentContinuously.type:
+          draft.symbolEntry.enterDeviceCommentContinuously = !draft.symbolEntry.enterDeviceCommentContinuously;
+          return;
 
         default:
           return state;

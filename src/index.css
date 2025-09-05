@@ -9,12 +9,14 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  justify-content: space-between;
-  overflow: auto;
-  background: #F5F5F5; /* Màu từ BG_DIAGRAM */
+  max-height: calc(100vh - 150px); /* Account for header/footer */
+  justify-content: flex-start; /* Changed from space-between */
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #F5F5F5;
   box-sizing: border-box;
   padding: 0.25em;
-  font-size: 16px; /* Desktop */
+  font-size: 16px;
 }
 
 @media (max-width: 640px) {
@@ -37,7 +39,7 @@ body {
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow: auto;
   user-select: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -56,6 +58,70 @@ html {
 
 #root {
   height: 100%;
+}
+
+/* CSS Isolation for Interface Separation */
+
+/* Original IDE Interface (Material-UI based) */
+.original-ide-interface {
+  /* Reset any Tailwind styles that might interfere with Material-UI */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.original-ide-interface * {
+  box-sizing: border-box;
+}
+
+/* GX Works 2 Interface (TailwindCSS based) */
+.gx-works2-interface {
+  /* Ensure Tailwind styles work properly */
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.gx-works2-interface * {
+  box-sizing: border-box;
+}
+
+/* Toolbar fixes */
+.gx-works2-interface > div {
+  flex-shrink: 0;
+}
+
+.gx-works2-interface .flex-nowrap {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.gx-works2-interface .min-h-0 {
+  min-height: 0;
+}
+
+/* Reset some Material-UI styles that might affect Tailwind in GX Works 2 interface */
+.gx-works2-interface .Mui-root {
+  all: unset;
+}
+
+.gx-works2-interface .MuiButton-root {
+  all: unset;
+}
+
+.gx-works2-interface .MuiTypography-root {
+  all: unset;
+}
+
+/* Ensure proper isolation between interfaces */
+.original-ide-interface ~ .gx-works2-interface,
+.gx-works2-interface ~ .original-ide-interface {
+  display: none;
 }
 
 input[type='number']::-webkit-inner-spin-button,

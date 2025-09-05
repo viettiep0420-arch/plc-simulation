@@ -20,13 +20,19 @@ A web-based PLC simulator that provides:
 
 ### User Experience Flow
 1. **Access**: User visits the website (https://app.plcsimulator.online/)
-2. **Authenticate**: Optional sign-in for project saving
-3. **Create**: Start with a blank ladder diagram or load existing project
-4. **Program**: Drag components from toolbox to build ladder logic
-5. **Configure**: Set up variables and component parameters
-6. **Simulate**: Run the program and observe behavior
-7. **Iterate**: Modify and test until desired behavior is achieved
-8. **Save**: Store project for future use
+2. **Interface Selection**: Choose between Original IDE or professional GX Works2-style interface
+3. **Authenticate**: Optional sign-in for project saving
+4. **Create**: Start with a blank ladder diagram or load existing project
+5. **Program**: Drag components from toolbox to build ladder logic
+6. **Configure**: Set up variables and component parameters
+7. **Simulate**: Run the program and observe behavior
+8. **Iterate**: Modify and test until desired behavior is achieved
+9. **Save**: Store project for future use
+
+### Dual Interface System
+- **Original IDE**: Material-UI based interface with familiar PLC simulator layout
+- **GX Works2 IDE**: Professional desktop-style interface with customizable toolbars, resizable panels, and advanced features
+- **Seamless Switching**: Users can switch between interfaces using the navigation switcher
 
 ### Core User Journeys
 

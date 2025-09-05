@@ -22,6 +22,9 @@
 - **User Authentication**: Firebase-based user management
 - **Dual Interface System**: Original PLC Simulator and professional GX Works2-style IDE
 - **Professional IDE**: Desktop-style interface with multiple toolbars, navigation panels, and status bar
+- **Customizable Toolbars**: Drag-and-drop toolbar organization using @dnd-kit
+- **Resizable Panels**: Adjustable workspace layout with persistent user preferences
+- **Advanced UI Features**: Hover menus, hotkey support, and professional styling
 
 ### Technical Requirements
 - **Frontend**: React 18 with TypeScript

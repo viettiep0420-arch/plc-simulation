@@ -1,497 +1,589 @@
-import React, { useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { nanoid } from 'nanoid';
-import { ADD_ELEMENT } from '../../store/types';
-import Diagram from '../diagram/Diagram';
-import { coil as coilBlock, contact as contactBlock, counter as counterBlock, math as mathBlock, timer as timerBlock, compare as compareBlock, move as moveBlock } from '../toolbox/elements';
-import { XIO } from '../../consts/elementTypes';
-import { 
-  FileText, 
-  FolderOpen, 
-  Save, 
-  Printer, 
-  HelpCircle,
-  Scissors, 
-  Copy, 
-  Clipboard, 
-  Undo, 
-  Redo,
-  Search,
-  Play,
-  Square,
-  Monitor,
-  Settings,
-  Navigation,
-  List,
-  Eye,
-  Crosshair,
-  Watch,
-  Brain,
-  Search as Find,
-  Zap,
-  Minus,
-  Plus,
-  Trash2,
-  Edit3,
-  MessageSquare,
-  Bookmark,
-  ZoomIn,
-  ZoomOut,
-  Wifi,
-  WifiOff,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  Circle
-} from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import Diagram from "../diagram/Diagram";
+import ImprovedMenuBar from "../menu/ImprovedMenuBar";
 
-interface GXWorks2IDEProps {
-  // Props interface for GX Works2 IDE
+// Small inline icons to avoid external deps
+const Icon = {
+  Plus: () => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path d="M12 4v16M4 12h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  Minus: () => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path d="M4 12h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  ChevronDown: () => (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+    </svg>
+  ),
+  Dots: () => (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <circle cx="5" cy="12" r="2" fill="currentColor" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" />
+      <circle cx="19" cy="12" r="2" fill="currentColor" />
+    </svg>
+  ),
+};
+
+const ToolbarButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { label?: string }>(
+  ({ label, className, children, ...rest }, ref) => {
+    const base = "inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-white hover:bg-gray-50 active:bg-gray-100 text-sm whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+    return (
+      <button ref={ref} className={`${base} ${className ?? ''}`} {...rest}>
+        {children}
+        {label && <span className="font-medium">{label}</span>}
+      </button>
+    );
+  }
+);
+ToolbarButton.displayName = "ToolbarButton";
+
+function useClickOutside(refs: React.RefObject<HTMLElement>[], handler: () => void) {
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      const clickedInside = refs.some((r) => r.current && r.current.contains(t));
+      if (!clickedInside) handler();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [refs, handler]);
 }
 
-export default function GXWorks2IDE(props: GXWorks2IDEProps) {
-  const dispatch = useDispatch();
-  const [activeTab, setActiveTab] = useState('MAIN');
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
-  const [compileStatus, setCompileStatus] = useState<'success' | 'error' | 'warning'>('success');
-  const [errorCount, setErrorCount] = useState(0);
-  const [warningCount, setWarningCount] = useState(0);
+function useSubmenuRefs() {
+  const mapRef = useRef<Record<string, Array<HTMLButtonElement | null>>>({});
+  const get = (menuId: string, index: number) => {
+    const arr = mapRef.current[menuId] || (mapRef.current[menuId] = []);
+    return (el: HTMLButtonElement | null) => {
+      arr[index] = el;
+    };
+  };
+  const focus = (menuId: string, index: number) => {
+    const arr = mapRef.current[menuId] || [];
+    const el = arr[index];
+    el?.focus();
+  };
+  return { get, focus };
+}
+
+export default function GXWorks2IDE() {
+  // Menubar state with hover functionality
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [usingKeyboard, setUsingKeyboard] = useState(false);
+  const { get, focus } = useSubmenuRefs();
+  const menubarRef = useRef<HTMLDivElement | null>(null);
+  const hoverTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Instruction picker
   const [showInstrPicker, setShowInstrPicker] = useState(false);
+  const instrBtnRef = useRef<HTMLButtonElement | null>(null);
+  const instrMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const addElement = (blockTemplate: any) => {
-    // Clone to avoid mutating shared templates
-    const block = JSON.parse(JSON.stringify(blockTemplate));
-    dispatch({ type: ADD_ELEMENT, payload: { block, blockId: nanoid() } });
+  // Resizable panels
+  const [leftW, setLeftW] = useState<number>(260);
+  const [rightW, setRightW] = useState<number>(320);
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(false);
+  const isResizing = useRef<null | "left" | "right">(null);
+
+  // Zoom for canvas demo
+  const [zoom, setZoom] = useState(1);
+
+  // Active tab state
+  const [activeTab, setActiveTab] = useState<string>("MAIN");
+
+  // Click outside to close menus & instruction picker
+  useClickOutside([menubarRef], () => setActiveMenu(null));
+  useClickOutside([instrMenuRef, instrBtnRef], () => setShowInstrPicker(false));
+
+  // Track last input method (mouse vs keyboard) — optional polish
+  useEffect(() => {
+    const onMouse = () => setUsingKeyboard(false);
+    const onKey = () => setUsingKeyboard(true);
+    window.addEventListener("mousedown", onMouse);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onMouse);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const topIds = useMemo(() => MENUS.map(m => m.id), []);
+  const getNextTopId = (curId: string, dir: 1 | -1) => {
+    const i = topIds.indexOf(curId);
+    const j = (i + dir + topIds.length) % topIds.length;
+    return topIds[j];
   };
 
-  const handleOpenContact = () => addElement(contactBlock); // XIC
-  const handleCloseContact = () => {
-    const nc = JSON.parse(JSON.stringify(contactBlock));
-    nc.type = XIO; // Normally Closed
-    addElement(nc);
-  };
-  const handleCoil = () => addElement(coilBlock);
-
-  const instructionOptions = useMemo(
-    () => ([
-      { key: 'timer', label: 'Timer (TON)', block: timerBlock },
-      { key: 'counter', label: 'Counter (CTU)', block: counterBlock },
-      { key: 'math', label: 'Math (ADD)', block: mathBlock },
-      { key: 'compare', label: 'Compare (EQU)', block: compareBlock },
-      { key: 'move', label: 'Move (MOVE)', block: moveBlock },
-    ]),
-    []
-  );
-
-  const handlePickInstruction = (key: string) => {
-    const item = instructionOptions.find((o) => o.key === key);
-    if (item) addElement(item.block);
-    setShowInstrPicker(false);
+  const openAndFocusFirst = (menuId: string) => {
+    setActiveMenu(menuId);
+    // Wait for submenu to render
+    requestAnimationFrame(() => focus(menuId, 0));
   };
 
-  const tabs = ['MAIN', 'Parameter', 'Device Comment', 'Label'];
+  const handleTopKeyDown = (e: React.KeyboardEvent, menuId: string) => {
+    switch (e.key) {
+      case "Enter":
+      case "ArrowDown":
+        e.preventDefault();
+        openAndFocusFirst(menuId);
+        break;
+      case "ArrowUp": 
+        e.preventDefault();
+        setActiveMenu(menuId);
+        requestAnimationFrame(() => {
+          const itemsLen = MENUS.find(m => m.id === menuId)?.items.length || 0;
+          focus(menuId, Math.max(0, itemsLen - 1));
+        });
+        break;
+      case "ArrowRight": {
+        e.preventDefault();
+        const nextId = getNextTopId(menuId, 1);
+        setActiveMenu(null);
+        const btn = document.getElementById(`top-${nextId}`) as HTMLButtonElement | null;
+        btn?.focus();
+        break;
+      }
+      case "ArrowLeft": {
+        e.preventDefault();
+        const prevId = getNextTopId(menuId, -1);
+        setActiveMenu(null);
+        const btn = document.getElementById(`top-${prevId}`) as HTMLButtonElement | null;
+        btn?.focus();
+        break;
+      }
+      case "Escape":
+        setActiveMenu(null);
+        break;
+    }
+  };
+
+  const handleSubKeyDown = (
+    e: React.KeyboardEvent,
+    menuId: string,
+    index: number,
+  ) => {
+    const itemsLen = MENUS.find(m => m.id === menuId)?.items.length || 0;
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        focus(menuId, (index + 1) % itemsLen);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        focus(menuId, (index - 1 + itemsLen) % itemsLen);
+        break;
+      case "Home":
+        e.preventDefault();
+        focus(menuId, 0);
+        break;
+      case "End":
+        e.preventDefault();
+        focus(menuId, Math.max(0, itemsLen - 1));
+        break;
+      case "Escape":
+        setActiveMenu(null);
+        const topBtn = document.getElementById(`top-${menuId}`) as HTMLButtonElement | null;
+        topBtn?.focus();
+        break;
+      case "ArrowRight":
+      case "ArrowLeft": {
+        // Switch to neighbor top-level menu
+        e.preventDefault();
+        const dir = e.key === "ArrowRight" ? 1 : -1;
+        const nextId = getNextTopId(menuId, dir);
+        setActiveMenu(nextId);
+        requestAnimationFrame(() => focus(nextId, 0));
+        break;
+      }
+      default:
+        break;
+    }
+  };
+
+  // Hotkeys
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveMenu(null);
+        setShowInstrPicker(false);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "+" || e.key === "=")) {
+        e.preventDefault();
+        setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)));
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "-")) {
+        e.preventDefault();
+        setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Mouse-driven resize
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (isResizing.current === "left") {
+        setLeftW((w) => Math.min(480, Math.max(200, w + e.movementX)));
+      } else if (isResizing.current === "right") {
+        setRightW((w) => Math.min(520, Math.max(260, w - e.movementX)));
+      }
+    };
+    const onUp = () => (isResizing.current = null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  // Menu structure
+  const MENUS: { id: string; label: string; items: { id: string; label: string; onSelect?: () => void }[] }[] = [
+    {
+      id: "project",
+      label: "Project",
+      items: [
+        { id: "new", label: "New Project" },
+        { id: "open", label: "Open" },
+        { id: "save", label: "Save" },
+        { id: "close", label: "Close" },
+      ],
+    },
+    {
+      id: "edit",
+      label: "Edit",
+      items: [
+        { id: "undo", label: "Undo" },
+        { id: "redo", label: "Redo" },
+        { id: "cut", label: "Cut" },
+        { id: "copy", label: "Copy" },
+        { id: "paste", label: "Paste" },
+      ],
+    },
+    {
+      id: "find-replace",
+      label: "Find/Replace",
+      items: [
+        { id: "find", label: "Find" },
+        { id: "replace", label: "Replace" },
+      ],
+    },
+    {
+      id: "compile",
+      label: "Compile",
+      items: [
+        { id: "build", label: "Build" },
+        { id: "rebuild", label: "Rebuild" },
+        { id: "clean", label: "Clean" },
+      ],
+    },
+    {
+      id: "view",
+      label: "View",
+      items: [
+        { id: "zoom-in", label: "Zoom In" },
+        { id: "zoom-out", label: "Zoom Out" },
+        { id: "reset-zoom", label: "Reset Zoom" },
+      ],
+    },
+    {
+      id: "online",
+      label: "Online",
+      items: [
+        { id: "write-plc", label: "Write to PLC" },
+        { id: "read-plc", label: "Read from PLC" },
+      ],
+    },
+    {
+      id: "debug",
+      label: "Debug",
+      items: [
+        { id: "start-monitor", label: "Start Monitor" },
+        { id: "stop-monitor", label: "Stop Monitor" },
+        { id: "device-monitor", label: "Device Monitor" },
+      ],
+    },
+    {
+      id: "diagnostics",
+      label: "Diagnostics",
+      items: [
+        { id: "cross-reference", label: "Cross Reference" },
+        { id: "device-reference", label: "Device Reference" },
+      ],
+    },
+    {
+      id: "tool",
+      label: "Tool",
+      items: [
+        { id: "options", label: "Options" },
+      ],
+    },
+    {
+      id: "window",
+      label: "Window",
+      items: [
+        { id: "reset-layout", label: "Reset Layout" },
+      ],
+    },
+    {
+      id: "help",
+      label: "Help",
+      items: [
+        { id: "documentation", label: "Documentation" },
+        { id: "tutorial", label: "Tutorial" },
+        { id: "about", label: "About" },
+      ],
+    },
+  ];
+
+  // Helper to position instruction menu near button (fixed layer)
+  const instrMenuStyle = useMemo(() => {
+    const r = instrBtnRef.current?.getBoundingClientRect();
+    if (!r) return { display: "none" } as React.CSSProperties;
+    const top = r.bottom + 8 + window.scrollY;
+    const left = r.left + window.scrollX;
+    return { top, left } as React.CSSProperties;
+  }, [showInstrPicker]);
 
   return (
-    <div className="h-screen bg-gray-100 flex flex-col font-sans text-sm">
-      {/* Header - Main Menu Bar */}
-      <header className="bg-white border-b border-gray-300 h-8 flex items-center px-2">
-        <div className="flex space-x-6 text-xs">
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Project</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Edit</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Find/Replace</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Compile</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">View</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Online</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Debug</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Diagnostics</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Tool</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Window</button>
-          <button className="hover:bg-gray-200 px-2 py-1 rounded">Help</button>
-        </div>
-      </header>
+    <div className="w-full h-screen flex flex-col text-gray-900">
+import ImprovedMenuBar from "./menu/ImprovedMenuBar";
 
-      {/* Standard Toolbar */}
-      <div className="bg-gray-50 border-b border-gray-300 h-10 flex items-center px-2 space-x-1">
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <FileText size={14} />
-          <span>New</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <FolderOpen size={14} />
-          <span>Open</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Save size={14} />
-          <span>Save</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Printer size={14} />
-          <span>Print</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <HelpCircle size={14} />
-          <span>Help</span>
-        </button>
-      </div>
+      {/* MENUBAR */}
+      <ImprovedMenuBar mobileUI={false} />
 
-      {/* Program Common Toolbar */}
-      <div className="bg-gray-50 border-b border-gray-300 h-10 flex items-center px-2 space-x-1">
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Scissors size={14} />
-          <span>Cut</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Copy size={14} />
-          <span>Copy</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Clipboard size={14} />
-          <span>Paste</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Undo size={14} />
-          <span>Undo</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Redo size={14} />
-          <span>Redo</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Search size={14} />
-          <span>Find Device</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Search size={14} />
-          <span>Find Instruction</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Search size={14} />
-          <span>Find Contact/Coil</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Play size={14} />
-          <span>Write to PLC</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Square size={14} />
-          <span>Read from PLC</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Monitor size={14} />
-          <span>Start Monitor</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Square size={14} />
-          <span>Stop Monitor</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Settings size={14} />
-          <span>Device Monitor</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Edit3 size={14} />
-          <span>Modify Value</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Play size={14} />
-          <span>Start Simulation</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Square size={14} />
-          <span>Stop Simulation</span>
-        </button>
-      </div>
-
-      {/* Docking Window / Switch Project Data Toolbar */}
-      <div className="bg-gray-50 border-b border-gray-300 h-10 flex items-center px-2 space-x-1">
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Navigation size={14} />
-          <span>Navigation</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <List size={14} />
-          <span>Element Selection</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Eye size={14} />
-          <span>Output Window</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Crosshair size={14} />
-          <span>Cross Reference</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <List size={14} />
-          <span>Device List</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Eye size={14} />
-          <span>Device Reference</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Watch size={14} />
-          <span>Watch</span>
-        </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Brain size={14} />
-          <span>Intelligence Module</span>
-        </button>
-        <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-          <Find size={14} />
-          <span>Find/Replace</span>
-        </button>
-      </div>
-
-      {/* Ladder Toolbar */}
-      <div className="bg-gray-50 border-b border-gray-300 h-10 flex items-center px-2 space-x-1">
-        {/* Logic Buttons */}
-        <div className="flex items-center space-x-1">
-          <span className="text-xs text-gray-600 mr-2">Logic:</span>
-          <button onClick={handleOpenContact} className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Zap size={14} />
-            <span>Open Contact</span>
-          </button>
-          <button onClick={handleCloseContact} className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Minus size={14} />
-            <span>Close Contact</span>
-          </button>
-          <button disabled className="flex items-center space-x-1 px-2 py-1 rounded text-xs opacity-50 cursor-not-allowed">
-            <Plus size={14} />
-            <span>Open Branch</span>
-          </button>
-          <button disabled className="flex items-center space-x-1 px-2 py-1 rounded text-xs opacity-50 cursor-not-allowed">
-            <Minus size={14} />
-            <span>Close Branch</span>
-          </button>
-          <button onClick={handleCoil} className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Circle size={14} />
-            <span>Coil</span>
-          </button>
-          <button onClick={() => setShowInstrPicker((v) => !v)} className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs relative">
-            <Settings size={14} />
-            <span>Application Instruction</span>
-            {showInstrPicker && (
-              <div className="absolute top-8 left-0 z-10 bg-white border border-gray-300 rounded shadow text-xs w-48">
-                {instructionOptions.map((opt) => (
-                  <button key={opt.key} onClick={() => handlePickInstruction(opt.key)} className="w-full text-left px-2 py-1 hover:bg-gray-100">
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </button>
-        </div>
-        
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        
-        {/* Draw Buttons */}
-        <div className="flex items-center space-x-1">
-          <span className="text-xs text-gray-600 mr-2">Draw:</span>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Minus size={14} />
-            <span>Horizontal Line</span>
-          </button>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Plus size={14} />
-            <span>Vertical Line</span>
-          </button>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Trash2 size={14} />
-            <span>Delete Line</span>
-          </button>
-        </div>
-        
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        
-        {/* Mode Buttons */}
-        <div className="flex items-center space-x-1">
-          <span className="text-xs text-gray-600 mr-2">Mode:</span>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs bg-blue-100">
-            <Eye size={14} />
-            <span>Read Mode</span>
-          </button>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Edit3 size={14} />
-            <span>Write Mode</span>
-          </button>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <Monitor size={14} />
-            <span>Monitor Mode</span>
-          </button>
-        </div>
-        
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        
-        {/* Zoom */}
-        <div className="flex items-center space-x-1">
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <ZoomIn size={14} />
-          </button>
-          <button className="flex items-center space-x-1 px-2 py-1 hover:bg-gray-200 rounded text-xs">
-            <ZoomOut size={14} />
-          </button>
-          <span className="text-xs text-gray-600">100%</span>
+      {/* MAIN TOOLBAR (sticky) */}
+      <div className="sticky top-[40px] z-30 bg-white/95 backdrop-blur border-b">
+        <div className="flex items-center gap-3 px-3 py-2 overflow-x-auto">
+          <ToolbarButton label="New" title="New Project">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </ToolbarButton>
+          <ToolbarButton label="Open">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </ToolbarButton>
+          <ToolbarButton label="Save">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M17 21v-8H7v8M7 3v5h8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </ToolbarButton>
+          <div className="h-6 w-px bg-gray-200" />
+          <ToolbarButton label="Cut">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M6 2L3 6v12a2 2 0 002 2h12a2 2 0 002-2V6l-3-4zM3 6h18" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 10a4 4 0 01-8 0" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </ToolbarButton>
+          <ToolbarButton label="Copy">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth="2" />
+            </svg>
+          </ToolbarButton>
+          <ToolbarButton label="Paste">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <path d="M16 4h2a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" strokeWidth="2" />
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" strokeWidth="2" />
+            </svg>
+          </ToolbarButton>
+          <div className="h-6 w-px bg-gray-200" />
+          <ToolbarButton label="Undo">↶</ToolbarButton>
+          <ToolbarButton label="Redo">↷</ToolbarButton>
+          <div className="h-6 w-px bg-gray-200" />
+          <ToolbarButton title="Zoom In" onClick={() => setZoom(z => Math.min(2, z + 0.1))}>
+            <Icon.Plus />
+          </ToolbarButton>
+          <ToolbarButton title="Zoom Out" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>
+            <Icon.Minus />
+          </ToolbarButton>
+          <div className="h-6 w-px bg-gray-200" />
+          <ToolbarButton
+            ref={instrBtnRef}
+            label="Application Instruction"
+            onClick={() => setShowInstrPicker((v) => !v)}
+          >
+            <Icon.ChevronDown />
+          </ToolbarButton>
         </div>
       </div>
 
-      {/* Main Body */}
-      <div className="flex-1 flex">
-        {/* Left Panel - Navigation */}
-        <div className="w-64 bg-white border-r border-gray-300 flex flex-col">
-          <div className="h-8 bg-gray-100 border-b border-gray-300 flex items-center px-2">
-            <span className="text-xs font-medium">Navigation</span>
-          </div>
-          <div className="flex-1 p-2">
-            <div className="space-y-1">
-              <div className="text-xs text-gray-600 mb-2">Project Structure</div>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-1 text-xs hover:bg-gray-100 p-1 rounded cursor-pointer">
-                  <FileText size={12} />
-                  <span>MAIN</span>
-                </div>
-                <div className="flex items-center space-x-1 text-xs hover:bg-gray-100 p-1 rounded cursor-pointer">
-                  <Settings size={12} />
-                  <span>Parameter</span>
-                </div>
-                <div className="flex items-center space-x-1 text-xs hover:bg-gray-100 p-1 rounded cursor-pointer">
-                  <MessageSquare size={12} />
-                  <span>Device Comment</span>
-                </div>
-                <div className="flex items-center space-x-1 text-xs hover:bg-gray-100 p-1 rounded cursor-pointer">
-                  <Bookmark size={12} />
-                  <span>Label</span>
-                </div>
-              </div>
+      {/* ANCHORED INSTRUCTION PICKER */}
+      {showInstrPicker && (
+        <div
+          ref={instrMenuRef}
+          id="instr-menu"
+          className="fixed z-50 rounded border bg-white shadow-lg min-w-48"
+          style={instrMenuStyle}
+          role="listbox"
+        >
+          {["MOV", "ADD", "TMR", "CNT", "CMP", "DIV", "MUL"].map((op) => (
+            <button
+              key={op}
+              role="option"
+              className="block w-full text-left px-3 py-2 hover:bg-gray-50"
+              onClick={() => setShowInstrPicker(false)}
+            >
+              {op}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* WORKSPACE */}
+      <div className="flex-1 min-h-0">
+        <div className="flex w-full h-full">
+          {/* LEFT: Navigation */}
+          <aside className="border-r bg-white overflow-auto" style={{ width: leftW }}>
+            <div className="p-3">
+              <h3 className="text-sm font-semibold mb-2">Navigation</h3>
+              <ul className="space-y-1 text-sm">
+                <li>▶ MAIN</li>
+                <li>• Parameter</li>
+                <li>• Device Comment</li>
+                <li>• Label</li>
+              </ul>
             </div>
-          </div>
-        </div>
+          </aside>
 
-        {/* Center - Workspace */}
-        <div className="flex-1 flex flex-col">
-          {/* Tab Panel */}
-          <div className="h-8 bg-gray-100 border-b border-gray-300 flex items-center">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-1 text-xs border-r border-gray-300 ${
-                  activeTab === tab 
-                    ? 'bg-white border-b-2 border-b-blue-500' 
-                    : 'hover:bg-gray-200'
-                }`}
-              >
-                {tab}
+          {/* GRABBER LEFT */}
+          <div
+            onMouseDown={() => (isResizing.current = "left")}
+            className="w-1 cursor-col-resize bg-transparent hover:bg-blue-200"
+            title="Drag to resize"
+          />
+
+          {/* CENTER: Ladder Canvas */}
+          <main className="flex-1 min-w-0 bg-gray-50">
+            {/* Tab bar */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b bg-white">
+              {[
+                { id: "MAIN", active: true },
+                { id: "Parameter", active: false },
+                { id: "Device", active: false },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  className={`px-3 py-1.5 rounded-t-md border-b-2 ${
+                    t.active ? "border-blue-600 text-blue-700" : "border-transparent hover:border-gray-300"
+                  }`}
+                  onClick={() => setActiveTab(t.id)}
+                >
+                  {t.id}
+                </button>
+              ))}
+              <div className="ml-auto" />
+              <button className="px-2 py-1 text-sm rounded hover:bg-gray-100" title="More tabs">
+                <Icon.Dots />
               </button>
-            ))}
-          </div>
-          
-          {/* Workspace Content */}
-          <div className="flex-1 bg-white p-4">
-            {activeTab === 'MAIN' ? (
-              <div className="h-full">
-                <Diagram mobileUI={false} />
-              </div>
-            ) : (
-              <div className="text-sm text-gray-600">
-                <h3 className="font-medium mb-2">Ladder Diagram Editor - {activeTab}</h3>
-                <div className="bg-gray-50 border border-gray-300 rounded p-4 h-64">
-                  <div className="text-center text-gray-500">
-                    Ladder diagram workspace will be displayed here
+            </div>
+
+            {/* Canvas */}
+            <div className="p-6">
+              <div
+                className="mx-auto bg-white border rounded-lg shadow-sm overflow-hidden"
+                style={{ width: "100%", height: 420, transform: `scale(${zoom})`, transformOrigin: "top left" }}
+              >
+                {activeTab === "MAIN" ? (
+                  <div className="h-full w-full grid place-items-center text-gray-500">
+                    <Diagram mobileUI={false} />
                   </div>
-                  <div className="mt-4 grid grid-cols-8 gap-1">
-                    {Array.from({ length: 64 }).map((_, i) => (
-                      <div key={i} className="w-8 h-8 border border-gray-200 bg-white"></div>
-                    ))}
+                ) : (
+                  <div className="h-full w-full grid place-items-center">
+                    <div className="text-center max-w-xl">
+                      <p className="mb-1 font-semibold">{activeTab} Workspace</p>
+                      <p className="text-sm">Configure {activeTab.toLowerCase()} settings here</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-xs text-gray-500">Zoom: {(zoom * 100).toFixed(0)}%</div>
+            </div>
+
+            {/* Output / Links */}
+            <div className="px-6 pb-24">
+              <h3 className="text-sm font-semibold mb-2">Output</h3>
+              <ul className="space-y-1">
+                <li className="text-green-700">✔ Compilation completed successfully</li>
+                <li className="text-gray-600">• No errors found</li>
+                <li className="text-gray-600">• Ready for simulation</li>
+              </ul>
+              <div className="mt-4 flex gap-6 text-blue-600 text-sm">
+                <a href="#" className="no-underline">READ THE DOCUMENTATION</a>
+                <a href="#" className="no-underline">WATCH TUTORIAL VIDEO</a>
+                <a href="#" className="no-underline">LOAD SAMPLE DIAGRAM</a>
+              </div>
+            </div>
+          </main>
+
+          {/* GRABBER RIGHT (hidden when collapsed) */}
+          {!rightCollapsed && (
+            <div
+              onMouseDown={() => (isResizing.current = "right")}
+              className="w-1 cursor-col-resize bg-transparent hover:bg-blue-200"
+              title="Drag to resize"
+            />
+          )}
+
+          {/* RIGHT: Properties/Watch */}
+          {!rightCollapsed && (
+            <aside className="border-l bg-white overflow-auto" style={{ width: rightW }}>
+              <div className="p-3 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Properties</h3>
+                    <button
+                      onClick={() => setRightCollapsed(true)}
+                      className="text-xs px-2 py-1 rounded border hover:bg-gray-50"
+                      title="Collapse Properties"
+                    >
+                      Collapse ›
+                    </button>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">No selection</div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold mb-1">Watch</h3>
+                  <div className="border rounded">
+                    <div className="px-2 py-1 text-xs bg-gray-50 border-b text-gray-600">Name / Value</div>
+                    <div className="p-2 text-sm text-gray-500">(empty)</div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Panel - Output/Watch */}
-      <div className="h-32 bg-white border-t border-gray-300 flex">
-        <div className="w-1/2 border-r border-gray-300">
-          <div className="h-6 bg-gray-100 border-b border-gray-300 flex items-center px-2">
-            <span className="text-xs font-medium">Output</span>
-          </div>
-          <div className="p-2 text-xs text-gray-600">
-            <div>Compilation completed successfully</div>
-            <div>No errors found</div>
-            <div>Ready for simulation</div>
-          </div>
-        </div>
-        <div className="w-1/2">
-          <div className="h-6 bg-gray-100 border-b border-gray-300 flex items-center px-2">
-            <span className="text-xs font-medium">Watch</span>
-          </div>
-          <div className="p-2 text-xs">
-            <div className="grid grid-cols-3 gap-2">
-              <div>Device</div>
-              <div>Value</div>
-              <div>Type</div>
-              <div>D0</div>
-              <div>0</div>
-              <div>DWORD</div>
-              <div>M0</div>
-              <div>FALSE</div>
-              <div>BOOL</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer - Status Bar */}
-      <footer className="h-6 bg-gray-100 border-t border-gray-300 flex items-center px-2 text-xs">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-1">
-            {connectionStatus === 'connected' ? (
-              <Wifi size={12} className="text-green-600" />
-            ) : (
-              <WifiOff size={12} className="text-red-600" />
-            )}
-            <span>PLC: {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}</span>
-          </div>
-          
-          <div className="flex items-center space-x-1">
-            {compileStatus === 'success' && <CheckCircle size={12} className="text-green-600" />}
-            {compileStatus === 'warning' && <AlertTriangle size={12} className="text-yellow-600" />}
-            {compileStatus === 'error' && <XCircle size={12} className="text-red-600" />}
-            <span>Compile: {compileStatus}</span>
-          </div>
-          
-          {errorCount > 0 && (
-            <div className="flex items-center space-x-1">
-              <XCircle size={12} className="text-red-600" />
-              <span>{errorCount} errors</span>
-            </div>
-          )}
-          
-          {warningCount > 0 && (
-            <div className="flex items-center space-x-1">
-              <AlertTriangle size={12} className="text-yellow-600" />
-              <span>{warningCount} warnings</span>
-            </div>
+            </aside>
           )}
         </div>
-        
-        <div className="flex-1"></div>
-        
-        <div className="flex items-center space-x-4">
-          <span>Line: 1, Col: 1</span>
-          <span>Ready</span>
-        </div>
+
+        {/* Dock button to reopen right panel */}
+        {rightCollapsed && (
+          <button
+            onClick={() => setRightCollapsed(false)}
+            className="fixed right-2 top-[88px] px-2 py-1 rounded bg-white shadow border text-sm"
+            title="Open Properties"
+          >
+            ‹ Properties
+          </button>
+        )}
+      </div>
+
+      {/* STATUS BAR */}
+      <footer className="sticky bottom-0 w-full bg-white border-t px-3 py-2 flex items-center gap-4">
+        <span className="text-sm text-gray-700">Ready</span>
+        <span className="text-sm text-green-700">Compilation completed successfully</span>
       </footer>
     </div>
   );
